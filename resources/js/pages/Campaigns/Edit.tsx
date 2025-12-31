@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Trash2 } from 'lucide-react';
 
 interface ParsedItem {
     raw_line: string;
@@ -41,6 +42,11 @@ export default function Edit({ initialItems, header }: Props) {
     const handleItemChange = (index: number, field: string, value: any) => {
         const newItems = [...data.items];
         newItems[index] = { ...newItems[index], [field]: value };
+        setData('items', newItems);
+    };
+
+    const handleRemoveItem = (index: number) => {
+        const newItems = data.items.filter((_, i) => i !== index);
         setData('items', newItems);
     };
 
@@ -123,6 +129,7 @@ export default function Edit({ initialItems, header }: Props) {
                                             <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Variant</th>
                                             <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Price</th>
                                             <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Image</th>
+                                            <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody className="[&_tr:last-child]:border-0">
@@ -153,6 +160,16 @@ export default function Edit({ initialItems, header }: Props) {
                                                         type="file"
                                                         onChange={e => handleItemChange(index, 'image', e.target.files ? e.target.files[0] : null)}
                                                     />
+                                                </td>
+                                                <td className="p-4 align-middle">
+                                                    <Button
+                                                        type="button"
+                                                        variant="destructive"
+                                                        size="icon"
+                                                        onClick={() => handleRemoveItem(index)}
+                                                    >
+                                                        <Trash2 className="h-4 w-4" />
+                                                    </Button>
                                                 </td>
                                             </tr>
                                         ))}
