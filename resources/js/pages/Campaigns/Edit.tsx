@@ -8,24 +8,47 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Trash2 } from 'lucide-react';
 
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+
+interface Template {
+    id: number;
+    name: string;
+    theme_color_hex: string;
+    theme_hero_path: string | null;
+    theme_bg_path: string | null;
+}
+
 interface ParsedItem {
     raw_line: string;
     suggested_name: string;
     price: number;
 }
 
+interface PrefillData {
+    name: string;
+    validity_text: string;
+    theme_color_hex: string;
+    theme_hero_path: string | null;
+    theme_bg_path: string | null;
+}
+
 interface Props {
     initialItems: ParsedItem[];
     header: string[];
+    templates: Template[];
+    prefill?: PrefillData;
 }
 
-export default function Edit({ initialItems, header }: Props) {
+export default function Edit({ initialItems, header, templates, prefill }: Props) {
     const { data, setData, post, processing, errors } = useForm({
-        name: header[0] || 'New Campaign',
-        validity_text: header[1] || 'Valid until...',
-        theme_color_hex: '#0f4c18',
+        name: prefill?.name || header[0] || 'New Campaign',
+        validity_text: prefill?.validity_text || header[1] || 'Valid until...',
+        template_id: '',
+        theme_color_hex: prefill?.theme_color_hex || '#0f4c18',
         theme_hero: null as File | null,
         theme_bg: null as File | null,
+        existing_hero_path: prefill?.theme_hero_path || null,
+        existing_bg_path: prefill?.theme_bg_path || null,
         items: initialItems.map(item => ({
             name: item.suggested_name,
             variant_label: '',
@@ -33,6 +56,36 @@ export default function Edit({ initialItems, header }: Props) {
             image: null as File | null,
         })),
     });
+
+    const [heroPreview, setHeroPreview] = useState<string | null>(prefill?.theme_hero_path || null);
+    const [bgPreview, setBgPreview] = useState<string | null>(prefill?.theme_bg_path || null);
+
+    const handleTemplateChange = (value: string) => {
+        const template = templates.find(t => t.id.toString() === value);
+        if (template) {
+            setData(prev => ({
+                ...prev,
+                template_id: value,
+                theme_color_hex: template.theme_color_hex,
+                theme_hero: null,
+                theme_bg: null,
+            }));
+            setHeroPreview(template.theme_hero_path);
+            setBgPreview(template.theme_bg_path);
+        }
+    };
+
+    const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>, field: 'theme_hero' | 'theme_bg', setPreview: (url: string | null) => void) => {
+        const file = e.target.files ? e.target.files[0] : null;
+        setData(field, file);
+        
+        if (file) {
+            const objectUrl = URL.createObjectURL(file);
+            setPreview(objectUrl);
+        } else {
+            setPreview(null);
+        }
+    };
 
     const submit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -79,6 +132,21 @@ export default function Edit({ initialItems, header }: Props) {
                                     />
                                     {errors.validity_text && <div className="text-destructive text-xs">{errors.validity_text}</div>}
                                 </div>
+                                <div className="col-span-2">
+                                    <Label htmlFor="template">Template</Label>
+                                    <Select onValueChange={handleTemplateChange} value={data.template_id}>
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="Select a template" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {templates.map(template => (
+                                                <SelectItem key={template.id} value={template.id.toString()}>
+                                                    {template.name}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
                                 <div className="space-y-2">
                                     <Label htmlFor="theme_color">Theme Color</Label>
                                     <div className="flex gap-2">
@@ -98,18 +166,36 @@ export default function Edit({ initialItems, header }: Props) {
                                 </div>
                                 <div className="space-y-2">
                                     <Label htmlFor="theme_hero">Hero Image</Label>
+                                    {heroPreview && (
+                                        <div className="mb-2">
+                                            <img 
+                                                src={heroPreview} 
+                                                alt="Hero preview" 
+                                                className="h-32 w-auto object-cover rounded border"
+                                            />
+                                        </div>
+                                    )}
                                     <Input
                                         id="theme_hero"
                                         type="file"
-                                        onChange={e => setData('theme_hero', e.target.files ? e.target.files[0] : null)}
+                                        onChange={e => handleImageChange(e, 'theme_hero', setHeroPreview)}
                                     />
                                 </div>
                                 <div className="space-y-2">
                                     <Label htmlFor="theme_bg">Background Image</Label>
+                                    {bgPreview && (
+                                        <div className="mb-2">
+                                            <img 
+                                                src={bgPreview} 
+                                                alt="Background preview" 
+                                                className="h-32 w-auto object-cover rounded border"
+                                            />
+                                        </div>
+                                    )}
                                     <Input
                                         id="theme_bg"
                                         type="file"
-                                        onChange={e => setData('theme_bg', e.target.files ? e.target.files[0] : null)}
+                                        onChange={e => handleImageChange(e, 'theme_bg', setBgPreview)}
                                     />
                                 </div>
                             </div>

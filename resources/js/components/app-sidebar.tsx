@@ -11,9 +11,12 @@ import {
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
 import { dashboard } from '@/routes';
+import { index } from '@/routes/products';
+import { index as templatesIndex } from '@/routes/templates';
+import { index as campaignsIndex } from '@/routes/campaigns';
 import { type NavItem } from '@/types';
 import { Link } from '@inertiajs/react';
-import { BookOpen, Folder, LayoutGrid } from 'lucide-react';
+import { BookOpen, Folder, LayoutGrid, Package, Palette, FileText } from 'lucide-react';
 import AppLogo from './app-logo';
 
 const mainNavItems: NavItem[] = [
@@ -21,6 +24,21 @@ const mainNavItems: NavItem[] = [
         title: 'Dashboard',
         href: dashboard(),
         icon: LayoutGrid,
+    },
+    {
+        title: 'Campaigns',
+        href: campaignsIndex.url(),
+        icon: FileText,
+    },
+    {
+        title: 'Products',
+        href: index.url(),
+        icon: Package,
+    },
+    {
+        title: 'Templates',
+        href: templatesIndex.url(),
+        icon: Palette,
     },
 ];
 
