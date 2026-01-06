@@ -150,6 +150,13 @@ if command -v php &> /dev/null; then
     check_config "post_max_size" "100M"
     check_config "memory_limit" "512M"
 
+    # 6. Check Default Shell
+    echo -n "Checking Default Shell... "
+    if [ -n "$SHELL" ]; then
+        echo -e "${CHECK_MARK} $SHELL"
+    else
+        echo -e "${WARNING_MARK} Could not determine default shell"
+    fi
 
 else
     echo -e "${CROSS_MARK} Not installed"
