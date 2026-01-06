@@ -158,6 +158,33 @@ if command -v php &> /dev/null; then
         echo -e "${WARNING_MARK} Could not determine default shell"
     fi
 
+`    # 7. Check Homebrew
+    echo -n "Checking Homebrew... "
+    if command -v brew &> /dev/null; then
+        BREW_VERSION=$(brew --version | head -n 1 | awk '{print $2}')
+        echo -e "${CHECK_MARK} Installed (v$BREW_VERSION)"
+        
+        # Check Shell Config
+        RC_FILE=""
+        if [[ "$SHELL" == *"zsh"* ]]; then
+            RC_FILE="$HOME/.zshrc"
+        elif [[ "$SHELL" == *"bash"* ]]; then
+            RC_FILE="$HOME/.bashrc"
+        fi
+        
+        if [ -n "$RC_FILE" ] && [ -f "$RC_FILE" ]; then
+            if grep -q "brew shellenv" "$RC_FILE"; then
+                echo -e "    ${CHECK_MARK} Found 'brew shellenv' in $RC_FILE"
+            else
+                echo -e "    ${WARNING_MARK} 'brew shellenv' NOT found in $RC_FILE"
+                echo -e "      ${YELLOW}Ensure Homebrew is in your PATH.${NC}"
+            fi
+        fi
+
+    else
+        echo -e "${WARNING_MARK} Not installed (Optional)"
+    fi
+
 else
     echo -e "${CROSS_MARK} Not installed"
     echo -e "  ${RED}Error: PHP is required.${NC}"
