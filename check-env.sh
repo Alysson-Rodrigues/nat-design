@@ -1,213 +1,177 @@
 #!/bin/bash
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
+# Colors
+RED=$'\033[0;31m'
+GREEN=$'\033[0;32m'
+YELLOW=$'\033[1;33m'
+BLUE=$'\033[0;34m'
+BOLD=$'\033[1m'
+NC=$'\033[0m'
 
-# Symbols
-CHECK_MARK="${GREEN}✔${NC}"
-CROSS_MARK="${RED}✘${NC}"
-WARNING_MARK="${YELLOW}⚠${NC}"
+# Formatting
+fmt_line=" %-3s %-25s %-30s\n"
 
-echo "============================================"
-echo "   Laravel Environment Requirement Check"
-echo "============================================"
-echo ""
+print_header() {
+    echo ""
+    echo -e "${BOLD}ENVIRONMENT CHECK${NC}"
+    echo -e "--------------------------------------------------------"
+}
+
+print_row() {
+    local status=$1
+    local name=$2
+    local info=$3
+    
+    if [ "$status" == "OK" ]; then
+        printf "$fmt_line" "${GREEN}✔${NC}" "$name" "$info"
+    elif [ "$status" == "WARN" ]; then
+        printf "$fmt_line" "${YELLOW}⚠${NC}" "$name" "$info"
+    else
+        printf "$fmt_line" "${RED}✘${NC}" "$name" "${RED}$info${NC}"
+    fi
+}
 
 HAS_ERRORS=0
 
-# Helper function to compare versions
-version_gte() {
-    [ "$1" = "$(echo -e "$1\n$2" | sort -V | head -n1)" ] && [ "$1" != "$2" ]
-    return $? # 0 if $1 < $2 (fail), 1 if $1 >= $2 (pass) - wait, sort -V sorts ascending. 
-    # if $1 is smallest, then $1 < $2. 
-    # Logic: if lowest is $1, then $1 < $2 (assuming they are different).
-    
-    # Let's use a simpler awk approch for portability
-    awk -v v1="$1" -v v2="$2" 'BEGIN {
-        split(v1, a, "."); split(v2, b, ".");
-        for (i=1; i<=3; i++) {
-            if (a[i] + 0 > b[i] + 0) exit 0; # v1 > v2
-            if (a[i] + 0 < b[i] + 0) exit 1; # v1 < v2
-        }
-        exit 0; # v1 == v2
-    }'
-}
+print_header
 
-# 1. Check Git
-echo -n "Checking Git... "
+# 1. GIT
 if command -v git &> /dev/null; then
-    GIT_VERSION=$(git --version | awk '{print $3}')
-    echo -e "${CHECK_MARK} Installed (v$GIT_VERSION)"
+    VER=$(git --version | awk '{print $3}')
+    print_row "OK" "Git" "v$VER"
 else
-    echo -e "${CROSS_MARK} Not installed"
-    echo -e "  ${YELLOW}Git is required for version control.${NC}"
+    print_row "FAIL" "Git" "Not Installed"
     HAS_ERRORS=1
 fi
 
-# 2. Check Node.js (Req: >= 18)
-REQUIRED_NODE_VERSION="18"
-echo -n "Checking Node.js... "
-if command -v node &> /dev/null; then
-    NODE_VERSION=$(node -v | cut -d'v' -f2) # remove 'v' prefix
-    
-    # Simple major version check for Node is usually sufficient
-    NODE_MAJOR=$(echo $NODE_VERSION | cut -d. -f1)
-    
-    if [ "$NODE_MAJOR" -ge "$REQUIRED_NODE_VERSION" ]; then
-        echo -e "${CHECK_MARK} Installed (v$NODE_VERSION) - Meets requirement (>= v$REQUIRED_NODE_VERSION)"
-    else
-        echo -e "${CROSS_MARK} Installed (v$NODE_VERSION)"
-        echo -e "  ${RED}Error: Node.js version $REQUIRED_NODE_VERSION or higher is required.${NC}"
-        HAS_ERRORS=1
-    fi
+# 2. DEFAULT SHELL
+if [ -n "$SHELL" ]; then
+    print_row "OK" "Shell" "$SHELL"
 else
-    echo -e "${CROSS_MARK} Not installed"
-    echo -e "  ${RED}Error: Node.js is required.${NC}"
-    HAS_ERRORS=1
+    print_row "WARN" "Shell" "Unknown"
 fi
 
-# 3. Check NPM
-echo -n "Checking NPM... "
-if command -v npm &> /dev/null; then
-    NPM_VERSION=$(npm -v)
-    echo -e "${CHECK_MARK} Installed (v$NPM_VERSION)"
-else
-    echo -e "${CROSS_MARK} Not installed"
-    HAS_ERRORS=1
-fi
-
-# 4. Check PHP (Req: >= 8.2)
-REQUIRED_PHP_VERSION="8.2"
-echo -n "Checking PHP... "
-if command -v php &> /dev/null; then
-    PHP_VERSION=$(php -r 'echo PHP_VERSION;')
+# 3. HOMEBREW
+if command -v brew &> /dev/null; then
+    VER=$(brew --version | head -n 1 | awk '{print $2}')
+    print_row "OK" "Homebrew" "v$VER"
     
-    # Use awk for float comparison safely
-    if awk "BEGIN {exit !($PHP_VERSION >= $REQUIRED_PHP_VERSION)}"; then
-        echo -e "${CHECK_MARK} Installed (v$PHP_VERSION) - Meets requirement (>= v$REQUIRED_PHP_VERSION)"
-    else
-        echo -e "${CROSS_MARK} Installed (v$PHP_VERSION)"
-        echo -e "  ${RED}Error: PHP version $REQUIRED_PHP_VERSION or higher is required.${NC}"
-        HAS_ERRORS=1
-    fi
+    # Check RC
+    RC_FILE=""
+    [[ "$SHELL" == *"zsh"* ]] && RC_FILE="$HOME/.zshrc"
+    [[ "$SHELL" == *"bash"* ]] && RC_FILE="$HOME/.bashrc"
     
-    # Check for common extensions if PHP is present
-    echo "  Checking PHP Extensions:"
-    REQUIRED_EXTENSIONS=("bcmath" "ctype" "curl" "dom" "fileinfo" "json" "mbstring" "openssl" "pcre" "pdo" "tokenizer" "xml")
-    MISSING_EXT=0
-    
-    for ext in "${REQUIRED_EXTENSIONS[@]}"; do
-        if php -m | grep -q -i "^$ext$"; then
-             # Silent pass for brevity, or we can list them
-             :
+    if [ -n "$RC_FILE" ] && [ -f "$RC_FILE" ]; then
+        if grep -q "brew shellenv" "$RC_FILE"; then
+             print_row "OK" "Brew Config" "Found in $(basename $RC_FILE)"
         else
-            echo -e "    ${CROSS_MARK} Missing extension: $ext"
-            MISSING_EXT=1
+             print_row "WARN" "Brew Config" "Missing in $(basename $RC_FILE)"
+        fi
+    fi
+else
+    print_row "WARN" "Homebrew" "Not Installed"
+fi
+
+# 4. NODEJS
+if command -v node &> /dev/null; then
+    VER=$(node -v | cut -d'v' -f2)
+    MAJOR=$(echo $VER | cut -d. -f1)
+    if [ "$MAJOR" -ge 18 ]; then
+        print_row "OK" "Node.js" "v$VER"
+    else
+        print_row "FAIL" "Node.js" "v$VER (< 18)"
+        HAS_ERRORS=1
+    fi
+else
+    print_row "FAIL" "Node.js" "Not Installed"
+    HAS_ERRORS=1
+fi
+
+# 5. NPM
+if command -v npm &> /dev/null; then
+    VER=$(npm -v)
+    print_row "OK" "NPM" "v$VER"
+else
+    print_row "FAIL" "NPM" "Not Installed"
+    HAS_ERRORS=1
+fi
+
+# 6. PHP
+if command -v php &> /dev/null; then
+    VER=$(php -r 'echo PHP_VERSION;')
+    # Simple float comparison using awk
+    if awk "BEGIN {exit !($VER >= 8.2)}"; then
+        print_row "OK" "PHP" "v$VER"
+    else
+        print_row "FAIL" "PHP" "v$VER (< 8.2)"
+        HAS_ERRORS=1
+    fi
+
+    # Extensions
+    REQ_EXTS="bcmath ctype curl dom fileinfo json mbstring openssl pcre pdo tokenizer xml"
+    MISSING=""
+    for ext in $REQ_EXTS; do
+        if ! php -m | grep -q -i "^$ext$"; then
+            MISSING="$MISSING $ext"
         fi
     done
-    
-    if [ $MISSING_EXT -eq 0 ]; then
-        echo -e "    ${CHECK_MARK} All common Laravel extensions found."
+
+    if [ -z "$MISSING" ]; then
+        print_row "OK" "PHP Extensions" "All Found"
     else
-        echo -e "    ${RED}Some required PHP extensions are missing.${NC}"
+        print_row "FAIL" "PHP Extensions" "Missing:$MISSING"
         HAS_ERRORS=1
     fi
 
-    # Check PHP Configuration
-    echo "  Checking PHP Configuration:"
-    
-    # Helper to convert size to bytes for comparison
-    to_bytes() {
-        local value=$1
-        case "$value" in
-            *[Gg]*) echo $((${value%[Gg]*} * 1024 * 1024 * 1024)) ;;
-            *[Mm]*) echo $((${value%[Mm]*} * 1024 * 1024)) ;;
-            *[Kk]*) echo $((${value%[Kk]*} * 1024)) ;;
-            *) echo $value ;;
-        esac
-    }
-
-    check_config() {
-        local setting=$1
-        local required_human=$2
-        local required_bytes=$(to_bytes $required_human)
-        local current_human=$(php -r "echo ini_get('$setting');")
-        local current_bytes=$(to_bytes $current_human)
-
-        if [ "$current_bytes" -ge "$required_bytes" ]; then
-            echo -e "    ${CHECK_MARK} $setting: $current_human (>= $required_human)"
+    # Config Helper
+    check_ini() {
+        local key=$1
+        local req=$2
+        local val=$(php -r "echo ini_get('$key');")
+        
+        # Convert to bytes for check
+        to_b() {
+            local v=$1
+            case "$v" in
+                *[Gg]*) echo $((${v%[Gg]*} * 1024 * 1024 * 1024)) ;;
+                *[Mm]*) echo $((${v%[Mm]*} * 1024 * 1024)) ;;
+                *[Kk]*) echo $((${v%[Kk]*} * 1024)) ;;
+                *) echo $v ;;
+            esac
+        }
+        
+        if [ $(to_b $val) -ge $(to_b $req) ]; then
+             print_row "OK" "$key" "$val"
         else
-            echo -e "    ${CROSS_MARK} $setting: $current_human"
-            echo -e "      ${RED}Error: $setting must be at least $required_human (Current: $current_human)${NC}"
-            HAS_ERRORS=1
+             print_row "FAIL" "$key" "$val (Req: $req)"
+             HAS_ERRORS=1
         fi
     }
 
-    check_config "upload_max_filesize" "100M"
-    check_config "post_max_size" "100M"
-    check_config "memory_limit" "512M"
-
-    # 6. Check Default Shell
-    echo -n "Checking Default Shell... "
-    if [ -n "$SHELL" ]; then
-        echo -e "${CHECK_MARK} $SHELL"
-    else
-        echo -e "${WARNING_MARK} Could not determine default shell"
-    fi
-
-    # 7. Check Homebrew
-    echo -n "Checking Homebrew... "
-    if command -v brew &> /dev/null; then
-        BREW_VERSION=$(brew --version | head -n 1 | awk '{print $2}')
-        echo -e "${CHECK_MARK} Installed (v$BREW_VERSION)"
-        
-        # Check Shell Config
-        RC_FILE=""
-        if [[ "$SHELL" == *"zsh"* ]]; then
-            RC_FILE="$HOME/.zshrc"
-        elif [[ "$SHELL" == *"bash"* ]]; then
-            RC_FILE="$HOME/.bashrc"
-        fi
-        
-        if [ -n "$RC_FILE" ] && [ -f "$RC_FILE" ]; then
-            if grep -q "brew shellenv" "$RC_FILE"; then
-                echo -e "    ${CHECK_MARK} Found 'brew shellenv' in $RC_FILE"
-            else
-                echo -e "    ${WARNING_MARK} 'brew shellenv' NOT found in $RC_FILE"
-                echo -e "      ${YELLOW}Ensure Homebrew is in your PATH.${NC}"
-            fi
-        fi
-
-    else
-        echo -e "${WARNING_MARK} Not installed (Optional)"
-    fi
+    check_ini "upload_max_filesize" "100M"
+    check_ini "post_max_size" "100M"
+    check_ini "memory_limit" "512M"
 
 else
-    echo -e "${CROSS_MARK} Not installed"
-    echo -e "  ${RED}Error: PHP is required.${NC}"
+    print_row "FAIL" "PHP" "Not Installed"
     HAS_ERRORS=1
 fi
 
-# 5. Check Composer
-echo -n "Checking Composer... "
+# 7. COMPOSER
 if command -v composer &> /dev/null; then
-    COMPOSER_VERSION=$(composer --version | awk '{print $3}')
-    echo -e "${CHECK_MARK} Installed (v$COMPOSER_VERSION)"
+    # Grab version cleanly, ignoring stderr/other output
+    VER=$(composer --version 2>/dev/null | awk '{print $3}')
+    print_row "OK" "Composer" "v$VER"
 else
-    echo -e "${CROSS_MARK} Not installed"
-    echo -e "  ${RED}Error: Composer is required.${NC}"
+    print_row "FAIL" "Composer" "Not Installed"
     HAS_ERRORS=1
 fi
 
-echo ""
-echo "============================================"
+echo -e "--------------------------------------------------------"
 if [ $HAS_ERRORS -eq 0 ]; then
-    echo -e "${GREEN}SUCCESS! Your environment meets all requirements.${NC}"
+    echo -e "${GREEN}SUCCESS${NC}  Environment is ready."
     exit 0
 else
-    echo -e "${RED}FAILURE: Please fix the issues above before proceeding.${NC}"
+    echo -e "${RED}FAILURE${NC}  Please fix issues above."
     exit 1
 fi
