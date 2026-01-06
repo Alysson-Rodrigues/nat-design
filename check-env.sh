@@ -158,7 +158,7 @@ if command -v php &> /dev/null; then
         echo -e "${WARNING_MARK} Could not determine default shell"
     fi
 
-`    # 7. Check Homebrew
+    # 7. Check Homebrew
     echo -n "Checking Homebrew... "
     if command -v brew &> /dev/null; then
         BREW_VERSION=$(brew --version | head -n 1 | awk '{print $2}')
